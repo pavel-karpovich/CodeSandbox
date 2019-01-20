@@ -1,0 +1,14 @@
+{
+  "name": "sandbox",
+  "version": "1.0.0",
+  "description": "The code sandbox for dotnet",
+  "main": "MicroServer.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Pavel Karpovich",
+  "license": "MIT",
+  "dependencies": {
+    "socket.io-client": "^2.2.0"
+  }
+}
