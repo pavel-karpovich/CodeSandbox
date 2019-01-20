@@ -1,8 +1,12 @@
 const { spawn } = require("child_process");
 const fs = require("fs");
 
-const SERVER_ADDRESS = process.argv.length > 2 ? process.argv[2] : undefined;
-if (!SERVER_ADDRESS) {
+const DEFAULT_PORT = 10391;
+
+// Expected at least 1 arg (or 2)
+const serverAddress = process.env.SERVER;
+
+if (!serverAddress) {
 
     return -1;
 
@@ -10,7 +14,9 @@ if (!SERVER_ADDRESS) {
 
 let exit = false;
 const socketIOClient = require("socket.io-client");
-const socket = socketIOClient.connect(SERVER_ADDRESS);
+const socket = socketIOClient(serverAddress + "/sandbox");
+
+setTimeout(() => exit = true, 10 * 60 * 1000);
 
 socket.on("exec", function(data) {
 
@@ -36,6 +42,7 @@ socket.on("exec", function(data) {
 
         // End of executing 
         socket.removeListener("i", inputHandler);
+        socket.emit("o", { "output": "The program exit with the status " + code });
 
     });
 
