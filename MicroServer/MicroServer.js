@@ -1,23 +1,24 @@
 const { spawn } = require("child_process");
 const fs = require("fs");
 
-const DEFAULT_PORT = 10391;
-
-// Expected at least 1 arg (or 2)
-const serverAddress = "http://0.0.0.0:8081";
-
+// Expected 2 env args
+const serverAddress = process.env.SERVER;
+const userId = process.env.ID;
+console.log("Let's go");
 if (!serverAddress) {
 
     console.log("Error: Server is not available.");
     return -1;
 
 }
+if (!userId) {
 
-let exit = false;
+    console.log("Error: User is not defined.");
+    return -1;
+}
+
 const socketIOClient = require("socket.io-client");
-const socket = socketIOClient(serverAddress + "/sandbox");
-
-setTimeout(() => exit = true, 10 * 60 * 1000);
+const socket = socketIOClient(serverAddress + "/sandbox", { query: `id=${userId}` });
 
 function uintToString(uintArray) {
     var encodedString = String.fromCharCode.apply(null, uintArray),
@@ -26,7 +27,7 @@ function uintToString(uintArray) {
 }
 
 function stringToUint(string) {
-    var string = btoa(unescape(encodeURIComponent(string))),
+    var string = unescape(encodeURIComponent(string)),
         charList = string.split(''),
         uintArray = [];
     for (var i = 0; i < charList.length; i++) {
@@ -35,32 +36,91 @@ function stringToUint(string) {
     return new Uint8Array(uintArray);
 }
 
-socket.on("exec", function(data) {
+let dotnet = null;
 
-    let dotnet = spawn("dotnet", ["run", "-p", "ConsoleApplication"]);
+function runDotnet() {
+        
+    console.log("run dotnet");
+    dotnet = spawn("dotnet", ["run", "-p", "ConsoleApplication"]);
+    socket.emit("start", { userId });
+    
     dotnet.stdout.on("data", function(data) {
 
-        socket.emit("o", { "output": uintToString(data) });
+        console.log("stdout data");
+        let decodedString = uintToString(data);
+        socket.emit("o", { userId, output: decodedString });
         
     });
+
     dotnet.stderr.on("data", function(data) {
 
-        socket.emit("e", { "error": uintToString(data) });
+        console.log("stderr data");
+        let decodedString = uintToString(data);
+        socket.emit("e", { userId, error: decodedString });
 
     });
+
     let inputHandler = function(data) {
 
-        dotnet.stdin.pipe(stringToUint(data.input));
+        console.log("inputttt");
+        let encodedString =  stringToUint(data.input + "\n")
+        console.log(encodedString);
+        dotnet.stdin.write(encodedString);
+        dotnet.stdin.end();
             
     }
+
     socket.on("i", inputHandler);
+
+    socket.on("stop", function() {
+       
+        console.log("stop this dude");
+        dotnet.stdin.pause();
+        dotnet.kill();
+
+    });
 
     dotnet.on("exit", function(code, signal) {
 
         // End of executing 
+        console.log("Exit-brexit");
         socket.removeListener("i", inputHandler);
-        socket.emit("o", { "output": "The program exit with the status " + code });
+        socket.emit("end", { userId, code: code });
 
     });
+}
+
+socket.on("exec", function(data) {
+
+    console.log("exec");
+    if (data.sourceCode) {
+
+        console.log("data: " + data.sourceCode);
+        console.log("begin write");
+        fs.writeFile("./ConsoleApplication/Program.cs", data.sourceCode, (err) => {
+
+            console.log("end write");
+            if (err) {
+
+                console.log("err!");
+                socket.emit("e", { userId, error: err });
+                return -1;
+
+            }
+            runDotnet();
+
+        });
+
+    } else {
+
+        runDotnet();
+
+    }
+
+});
+
+socket.on("exit", function() {
+
+    process.exit();
 
 });
