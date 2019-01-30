@@ -61,10 +61,9 @@ function loadCode(sourceCode) {
 
             fs.writeFileSync("./Code/Program.cs", sourceCode);
             console.log("end write code")
-
         } catch (err) {
             console.log("err!");
-            socket.emit("e", { userId, error: err });
+            socket.emit("error", { userId, error: err });
             return -1;
         }
     }
@@ -83,36 +82,44 @@ socket.on("exec", function(data) {
 
         console.log("stdout data");
         let decodedString = uintToString(data);
-        socket.emit("o", { userId, output: decodedString });
+        socket.emit("output", { userId, output: decodedString });
         
     });
 
     dotnet.stderr.on("data", function(data) {
 
         console.log("stderr data");
-        let decodedString = uintToString(data);
-        socket.emit("e", { userId, error: decodedString });
+        let decodedStringErrorFromDotNet = uintToString(data);
+        socket.emit("error", { userId, error: decodedStringErrorFromDotNet });
 
     });
 
     let inputHandler = function(data) {
 
         console.log("inputttt");
+        console.log(data.input);
         let encodedString =  stringToUint(data.input + "\n")
-        console.log(encodedString);
-        dotnet.stdin.write(encodedString);
-        dotnet.stdin.end();
+        try {
+
+            dotnet.stdin.write(encodedString);
+            dotnet.stdin.end();
+
+        } catch (err) {
+
+            socket.emit("error", { userId, error: err });
+
+        }
             
     }
 
-    socket.on("i", inputHandler);
+    socket.on("input", inputHandler);
 
     socket.on("stop", function() {
        
         console.log("stop this dude");
         dotnet.stdin.pause();
         dotnet.kill();
-
+        socket.emit("stop-end");
     });
 
     dotnet.on("exit", function(code, signal) {
@@ -120,7 +127,7 @@ socket.on("exec", function(data) {
         // End of executing 
         console.log("Exit-brexit");
         socket.removeListener("i", inputHandler);
-        socket.emit("end", { userId, code: code });
+        socket.emit("exec-end", { userId, code: code });
 
     });
 });
@@ -144,7 +151,7 @@ function loadTests(testsCode) {
     
     } catch (err) {
         console.log("err!");
-        socket.emit("e", { userId, error: err });
+        socket.emit("error", { userId, error: err });
         return -1;
     }
 
@@ -245,7 +252,7 @@ socket.on("test", function(data) {
 
             console.dir(testResults);
             testResults.userId = userId;
-            socket.emit("result", testResults);
+            socket.emit("test-end", testResults);
 
         })
         .catch(function(err) {
