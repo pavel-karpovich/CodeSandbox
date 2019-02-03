@@ -7,28 +7,36 @@ const xml2js = require("xml2js");
 docker build . -t test
 docker rm $(docker stop $(docker ps -aq))
 docker run --network=host -e SERVER=http://0.0.0.0:8081 -e ID=111 test
+docker run 
 */
 
 // Expected 2 env args
 const serverAddress = process.env.SERVER;
 const userId = process.env.ID;
+const sessionId = process.env.SESSION;
 
 console.log("Let's go");
 
-if (!serverAddress) {
+if (serverAddress == undefined) {
 
     console.log("Error: Server is not available.");
     return -1;
 
 }
-if (!userId) {
+else if (userId == undefined) {
 
     console.log("Error: User is not defined.");
     return -1;
+
 }
 
+
 const socketIOClient = require("socket.io-client");
-const socket = socketIOClient(serverAddress + "/sandbox", { query: `id=${userId}` });
+const socket = socketIOClient(serverAddress + "/sandbox", { 
+    query: `id=${userId}&session=${sessionId}`,
+    reconnection: true,
+    reconnectionAttempts: 10
+});
 
 const parser = new xml2js.Parser();
 const testPath = "Code.Tests/TestResults/";
@@ -63,7 +71,7 @@ function loadCode(sourceCode) {
             console.log("end write code")
         } catch (err) {
             console.log("err!");
-            socket.emit("error", { userId, error: err });
+            socket.emit("error", { error: err });
             return -1;
         }
     }
@@ -76,13 +84,13 @@ socket.on("exec", function(data) {
     }
     console.log("run dotnet");
     dotnet = spawn("dotnet", ["run", "-p", "Run"]);
-    socket.emit("start", { userId });
+    socket.emit("start");
     
     dotnet.stdout.on("data", function(data) {
 
         console.log("stdout data");
         let decodedString = uintToString(data);
-        socket.emit("output", { userId, output: decodedString });
+        socket.emit("output", { output: decodedString });
         
     });
 
@@ -90,7 +98,7 @@ socket.on("exec", function(data) {
 
         console.log("stderr data");
         let decodedStringErrorFromDotNet = uintToString(data);
-        socket.emit("error", { userId, error: decodedStringErrorFromDotNet });
+        socket.emit("error", { error: decodedStringErrorFromDotNet });
 
     });
 
@@ -106,7 +114,7 @@ socket.on("exec", function(data) {
 
         } catch (err) {
 
-            socket.emit("error", { userId, error: err });
+            socket.emit("error", { error: err });
 
         }
             
@@ -127,7 +135,7 @@ socket.on("exec", function(data) {
         // End of executing 
         console.log("Exit-brexit");
         socket.removeListener("i", inputHandler);
-        socket.emit("exec-end", { userId, code: code });
+        socket.emit("exec-end", { code: code });
 
     });
 });
@@ -151,7 +159,7 @@ function loadTests(testsCode) {
     
     } catch (err) {
         console.log("err!");
-        socket.emit("error", { userId, error: err });
+        socket.emit("error", { error: err });
         return -1;
     }
 
@@ -251,7 +259,6 @@ socket.on("test", function(data) {
         .then(function(testResults) {
 
             console.dir(testResults);
-            testResults.userId = userId;
             socket.emit("test-end", testResults);
 
         })
@@ -263,8 +270,12 @@ socket.on("test", function(data) {
 
 });
 
-socket.on("exit", function() {
+function closeContainer() {
 
+    console.log("exit with code 0");
     process.exit();
 
-});
+}
+
+socket.on("exit", closeContainer);
+socket.on("disconnect", closeContainer);
