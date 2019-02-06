@@ -212,7 +212,7 @@ function clearTestOutput() {
     try {
 
         if (fs.existsSync(testPath)) {
-            
+
             let files = fs.readdirSync(testPath);
             for (file of files) {
 
@@ -251,14 +251,11 @@ async function parseTestResultsAsync() {
             let filedata = fs.readFileSync(testPath + filename);
             let result = await parseStringAsync(filedata);
 
-            console.log(result);
             for (let test of result.TestRun.Results[0].UnitTestResult) {
 
-                console.log(test);
                 if (test.$.outcome == "Failed") {
 
                     let msg = test.Output[0].ErrorInfo[0].Message[0];
-                    console.log(msg);
                     msg = msg.slice(0, msg.indexOf("Expected:"));
                     ret.results.push(msg);
                 }
@@ -287,6 +284,7 @@ socket.on("test", function(data) {
         }
 
     }
+    testStopped = false;
     console.log("run tests");
     tests = spawn("dotnet", ["test", "-l", "trx"]);
     socket.emit("start-test");
@@ -309,7 +307,6 @@ socket.on("test", function(data) {
             });
         
         }
-        testStopped = false;
 
     });
 
