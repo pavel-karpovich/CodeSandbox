@@ -41,6 +41,10 @@ const socket = socketIOClient(serverAddress + "/sandbox", {
 const parser = new xml2js.Parser();
 const testPath = "Code.Tests/TestResults/";
 
+
+let dotnet = null;
+let tests = null;
+
 function uintToString(uintArray) {
     var encodedString = String.fromCharCode.apply(null, uintArray),
         decodedString = decodeURIComponent(escape(encodedString));
@@ -56,8 +60,6 @@ function stringToUint(string) {
     }
     return new Uint8Array(uintArray);
 }
-
-let dotnet = null;
 
 function loadCode(sourceCode) {
 
@@ -76,6 +78,9 @@ function loadCode(sourceCode) {
         }
     }
 }
+
+let execStopped = false;
+let testStopped = false;
 
 socket.on("exec", function(data) {
         
@@ -122,22 +127,30 @@ socket.on("exec", function(data) {
 
     socket.on("input", inputHandler);
 
-    socket.on("stop", function() {
-       
-        console.log("stop this dude");
-        dotnet.stdin.pause();
-        dotnet.kill();
-        socket.emit("stop-end");
-    });
-
     dotnet.on("exit", function(code, signal) {
 
-        // End of executing 
-        console.log("Exit-brexit");
-        socket.removeListener("i", inputHandler);
-        socket.emit("exec-end", { code: code });
+        socket.removeListener("input", inputHandler);
+
+        if (!execStopped) {
+
+            // End of executing 
+            console.log("Exit-brexit");
+            socket.emit("exec-end", { code: code });
+
+        }
+        execStopped = false;
 
     });
+});
+
+socket.on("stop", function() {
+       
+    console.log("stop this dude");
+    execStopped = true;
+    dotnet.stdin.pause();
+    dotnet.kill();
+    socket.emit("stop-end");
+
 });
 
 
@@ -262,29 +275,37 @@ socket.on("test", function(data) {
     tests.on("exit", function(code, signal) {
 
         // End of executing 
-        console.log("End of testing");
-        parseTestResultsAsync()
-        .then(function(testResults) {
+        if (!testStopped) {
+        
+            console.log("End of testing");
+            parseTestResultsAsync()
+            .then(function(testResults) {
 
-            console.dir(testResults);
-            socket.emit("test-end", testResults);
+                console.dir(testResults);
+                socket.emit("test-end", testResults);
 
-        })
-        .catch(function(err) {
-            console.log(err);
-        });
-
-    });
-
-    socket.on("stop-test", function() {
-
-        console.log("stop test execution");
-        tests.stdin.pause();
-        tests.kill();
-        clearTestOutput();
-        socket.emit("stop-test-end");
+            })
+            .catch(function(err) {
+                console.log(err);
+            });
+        
+        }
+        testStopped = false;
 
     });
+
+    
+
+});
+
+socket.on("stop-test", function() {
+
+    console.log("stop test execution");
+    testStopped = true;
+    tests.stdin.pause();
+    tests.kill();
+    clearTestOutput();
+    socket.emit("stop-test-end");
 
 });
 
@@ -296,4 +317,5 @@ function closeContainer() {
 }
 
 socket.on("exit", closeContainer);
+
 socket.on("disconnect", closeContainer);
