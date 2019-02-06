@@ -71,7 +71,7 @@ function loadCode(sourceCode) {
             console.log("end write code")
         } catch (err) {
             console.log("err!");
-            socket.emit("error", { error: err });
+            socket.emit("err", { error: err });
             return -1;
         }
     }
@@ -98,7 +98,7 @@ socket.on("exec", function(data) {
 
         console.log("stderr data");
         let decodedStringErrorFromDotNet = uintToString(data);
-        socket.emit("error", { error: decodedStringErrorFromDotNet });
+        socket.emit("err", { error: decodedStringErrorFromDotNet });
 
     });
 
@@ -114,7 +114,7 @@ socket.on("exec", function(data) {
 
         } catch (err) {
 
-            socket.emit("error", { error: err });
+            socket.emit("err", { error: err });
 
         }
             
@@ -159,7 +159,7 @@ function loadTests(testsCode) {
     
     } catch (err) {
         console.log("err!");
-        socket.emit("error", { error: err });
+        socket.emit("err", { error: err });
         return -1;
     }
 
@@ -184,6 +184,17 @@ async function parseStringAsync(xml) {
         });
 
     });
+}
+
+function clearTestOutput() {
+
+    let files = fs.readdirSync(testPath);
+    for (file of files) {
+
+        fs.unlinkSync(testPath + file);
+    
+    }
+
 }
 
 async function parseTestResultsAsync() {
@@ -227,11 +238,7 @@ async function parseTestResultsAsync() {
         } catch (excp) {
             console.log(excp);
         }
-        for (file of files) {
-
-            fs.unlinkSync(testPath + file);
-        
-        }
+        clearTestOutput();
     }
     return ret;
 }
@@ -250,6 +257,7 @@ socket.on("test", function(data) {
     }
     console.log("run tests");
     tests = spawn("dotnet", ["test", "-l", "trx"]);
+    socket.emit("start-test");
     
     tests.on("exit", function(code, signal) {
 
@@ -265,6 +273,16 @@ socket.on("test", function(data) {
         .catch(function(err) {
             console.log(err);
         });
+
+    });
+
+    socket.on("stop-test", function() {
+
+        console.log("stop test execution");
+        tests.stdin.pause();
+        tests.kill();
+        clearTestOutput();
+        socket.emit("stop-test-end");
 
     });
 
