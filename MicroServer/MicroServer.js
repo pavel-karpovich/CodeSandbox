@@ -147,8 +147,16 @@ socket.on("stop", function() {
        
     console.log("stop this dude");
     execStopped = true;
-    dotnet.stdin.pause();
-    dotnet.kill();
+    try {
+
+        dotnet.stdin.pause();
+        dotnet.kill();
+
+    } catch (err) {
+
+        socket.emit("err", { error: "Error when killing dotnet: " + err });
+
+    }
     socket.emit("stop-end");
 
 });
@@ -201,13 +209,23 @@ async function parseStringAsync(xml) {
 
 function clearTestOutput() {
 
-    let files = fs.readdirSync(testPath);
-    for (file of files) {
+    try {
 
-        fs.unlinkSync(testPath + file);
-    
+        if (fs.existsSync(testPath)) {
+            
+            let files = fs.readdirSync(testPath);
+            for (file of files) {
+
+                fs.unlinkSync(testPath + file);
+            
+            }
+        }
+
+    } catch (err) {
+
+        console.log(err);
+
     }
-
 }
 
 async function parseTestResultsAsync() {
@@ -226,6 +244,7 @@ async function parseTestResultsAsync() {
     }
     let filename = files[0];
     if (filename) {
+
         console.log(filename);
         try {
 
@@ -302,8 +321,16 @@ socket.on("stop-test", function() {
 
     console.log("stop test execution");
     testStopped = true;
-    tests.stdin.pause();
-    tests.kill();
+    try {
+
+        tests.stdin.pause();
+        tests.kill();
+
+    } catch (err) {
+
+        socket.emit("err", { error: "Error when killing tests: " + err });
+
+    }
     clearTestOutput();
     socket.emit("stop-test-end");
 
