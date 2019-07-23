@@ -32,10 +32,11 @@ else if (userId == undefined) {
 
 
 const socketIOClient = require("socket.io-client");
-const socket = socketIOClient(serverAddress + "/sandbox", { 
+const socket = socketIOClient(`ws://${serverAddress}/sandbox`, { 
     query: `id=${userId}&session=${sessionId}`,
     reconnection: true,
-    reconnectionAttempts: 10
+    reconnectionAttempts: 10,
+    transports: ["websocket"]
 });
 
 const parser = new xml2js.Parser();
@@ -334,12 +335,22 @@ socket.on("stop-test", function() {
 });
 
 function closeContainer() {
-
+    console.log("Close container");
     console.log("exit with code 0");
     process.exit();
 
 }
 
 socket.on("exit", closeContainer);
-
 socket.on("disconnect", closeContainer);
+
+socket.on("connect_error", function(error) {
+    console.log(`Connection error to the server ${serverAddress}:`);
+    console.log(error);
+});
+socket.on("connect_timeout", function(timeout) {
+    console.log(`Connection timeout: ${timeout} ms`);
+});
+socket.on("error", function(error) {
+    console.log(`Unknown error: ${error}`);
+});
